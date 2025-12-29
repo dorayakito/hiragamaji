@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Romaji → ひらがな | OTO Editor</title>
+  <!-- Tailwind via CDN (opcional). Se estiver offline, tudo funciona com o CSS mínimo abaixo. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Fallback básico caso o Tailwind CDN não carregue */
+    :root { --b:#f8fafc; --t:#0f172a; --bd:#e5e7eb; }
+    body{background:var(--b);color:var(--t);font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Noto Sans",sans-serif}
+    .card{background:#fff;border:1px solid var(--bd);border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    input,button{font:inherit}
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="sticky top-0 z-10 backdrop-blur bg-white/80 border-b border-gray-200">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+      <h1 class="text-2xl font-semibold">Romaji → ひらがな • OTO Editor</h1>
+      <div class="ml-auto flex items-center gap-2">
+        <input id="fileInput" type="file" accept=".ini,.txt" class="hidden" />
+        <button id="btnUpload" class="px-3 py-1.5 rounded-xl border bg-white hover:bg-gray-50 shadow-sm">Upload oto.ini</button>
+        <button id="btnConvert" class="px-3 py-1.5 rounded-xl border bg-white hover:bg-gray-50 shadow-sm disabled:opacity-50" disabled>Converter aliases</button>
+        <button id="btnDownload" class="px-3 py-1.5 rounded-xl border bg-white hover:bg-gray-50 shadow-sm disabled:opacity-50" disabled>Baixar oto.ini</button>
+        <button id="btnNovo" class="px-3 py-1.5 rounded-xl border bg-white hover:bg-gray-50 shadow-sm">Novo</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    <!-- Dropzone inicial -->
+    <div id="dropzone" class="card border-dashed border-2 border-gray-300 rounded-2xl p-10 text-center" style="display:block">
+      <p class="text-lg font-medium mb-2">Arraste e solte seu <code class="px-1 bg-gray-100 rounded">oto.ini</code> aqui</p>
+      <p class="text-sm text-gray-500">ou clique em <span class="font-semibold">Upload oto.ini</span> no topo</p>
+    </div>
+
+    <section id="workArea" class="space-y-6" style="display:none">
+      <div class="flex flex-wrap items-center gap-3">
+        <div id="fileMeta" class="text-sm text-gray-600">Arquivo: <span class="font-medium">oto.ini</span> — Linhas: 0</div>
+        <input id="filter" type="text" placeholder="Filtrar por arquivo ou alias…" class="ml-auto w-full sm:w-72 px-3 py-2 rounded-xl border bg-white shadow-sm">
+      </div>
+
+      <!-- Tabela editável -->
+      <div class="card overflow-hidden">
+        <div class="grid grid-cols-12 gap-0 border-b bg-gray-50 text-sm font-medium">
+          <div class="col-span-5 px-3 py-2">arquivo</div>
+          <div class="col-span-3 px-3 py-2">alias (editável)</div>
+          <div class="col-span-4 px-3 py-2">restante (visualização)</div>
+        </div>
+        <div id="gridBody" class="max-h-96 overflow-auto divide-y"></div>
+      </div>
+
+      <!-- Linhas renderizadas -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-700 mb-2">Linhas do arquivo (renderizadas)</h2>
+        <div class="card p-3 max-h-72 overflow-auto">
+          <pre id="rendered" class="text-xs leading-5 whitespace-pre-wrap"></pre>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="max-w-6xl mx-auto px-4 py-10 text-center text-xs text-gray-500">
+    Dica: Se o alias estiver vazio, o app usa o nome do arquivo (sem extensão) como romaji e converte para ひらがな.
+  </footer>
+
+  <script>
+    // ---------------- Romaji → Hiragana ----------------
+    function romajiToHiragana(input){
+      if(!input) return "";
+      let s = input.toLowerCase().trim();
+      s = s.replace(/\u2019|\u2018|’|‘/g, "'");
+      const pairs = [
+        ["kyo","きょ"],["kya","きゃ"],["kyu","きゅ"],
+        ["gya","ぎゃ"],["gyu","ぎゅ"],["gyo","ぎょ"],
+        ["sha","しゃ"],["shu","しゅ"],["sho","しょ"],
+        ["sya","しゃ"],["syu","しゅ"],["syo","しょ"],
+        ["ja","じゃ"],["ju","じゅ"],["jo","じょ"],
+        ["jya","じゃ"],["jyu","じゅ"],["jyo","じょ"],
+        ["cha","ちゃ"],["chu","ちゅ"],["cho","ちょ"],
+        ["cya","ちゃ"],["cyu","ちゅ"],["cyo","ちょ"],
+        ["tya","ちゃ"],["tyu","ちゅ"],["tyo","ちょ"],
+        ["nya","にゃ"],["nyu","にゅ"],["nyo","にょ"],
+        ["hya","ひゃ"],["hyu","ひゅ"],["hyo","ひょ"],
+        ["bya","びゃ"],["byu","びゅ"],["byo","びょ"],
+        ["pya","ぴゃ"],["pyu","ぴゅ"],["pyo","ぴょ"],
+        ["mya","みゃ"],["myu","みゅ"],["myo","みょ"],
+        ["rya","りゃ"],["ryu","りゅ"],["ryo","りょ"],
+        ["dya","ぢゃ"],["dyu","ぢゅ"],["dyo","ぢょ"],
+        ["fa","ふぁ"],["fi","ふぃ"],["fu","ふ"],["fe","ふぇ"],["fo","ふぉ"],
+        ["va","ゔぁ"],["vi","ゔぃ"],["vu","ゔ"],["ve","ゔぇ"],["vo","ゔぉ"],
+        ["tsa","つぁ"],["tsi","つぃ"],["tse","つぇ"],["tso","つぉ"],
+        ["qa","くぁ"],["qi","くぃ"],["qe","くぇ"],["qo","くぉ"],
+        ["shi","し"],["chi","ち"],["tsu","つ"],["ji","じ"],["dji","ぢ"],["dzu","づ"],
+        ["ti","ち"],["tu","つ"],["di","ぢ"],["du","づ"],["zi","じ"],["si","し"],
+        ["ka","か"],["ki","き"],["ku","く"],["ke","け"],["ko","こ"],
+        ["ga","が"],["gi","ぎ"],["gu","ぐ"],["ge","げ"],["go","ご"],
+        ["sa","さ"],["su","す"],["se","せ"],["so","そ"],["za","ざ"],["zu","ず"],["ze","ぜ"],["zo","ぞ"],
+        ["ta","た"],["te","て"],["to","と"],["da","だ"],["de","で"],["do","ど"],
+        ["na","な"],["ni","に"],["nu","ぬ"],["ne","ね"],["no","の"],
+        ["ha","は"],["hi","ひ"],["he","へ"],["ho","ほ"],
+        ["ba","ば"],["bi","び"],["bu","ぶ"],["be","べ"],["bo","ぼ"],
+        ["pa","ぱ"],["pi","ぴ"],["pu","ぷ"],["pe","ぺ"],["po","ぽ"],
+        ["ma","ま"],["mi","み"],["mu","む"],["me","め"],["mo","も"],
+        ["ya","や"],["yu","ゆ"],["yo","よ"],
+        ["ra","ら"],["ri","り"],["ru","る"],["re","れ"],["ro","ろ"],
+        ["wa","わ"],["wo","を"],["we","うぇ"],["wi","うぃ"],
+        ["a","あ"],["i","い"],["u","う"],["e","え"],["o","お"],
+        ["xa","ぁ"],["xi","ぃ"],["xu","ぅ"],["xe","ぇ"],["xo","ぉ"],
+        ["la","ぁ"],["li","ぃ"],["lu","ぅ"],["le","ぇ"],["lo","ぉ"]
+      ].sort((a,b)=>b[0].length-a[0].length);
+
+      // sokuon: consoante dupla → っ
+      s = s.replace(/([bcdfghjklmnpqrstvwxyz])\1/g, "っ$1");
+
+      let out=""; let i=0;
+      while(i<s.length){
+        if(s[i]==='n'){
+          const next=s[i+1]||"";
+          if(!(next==='y'||['a','i','u','e','o'].includes(next))){ out+="ん"; i++; continue; }
+        }
+        let matched=false;
+        for(const [r,h] of pairs){
+          if(s.startsWith(r,i)){ out+=h; i+=r.length; matched=true; break; }
+        }
+        if(!matched){ out+=s[i]; i++; }
+      }
+      out = out.replace(/n$/g,"ん").replace(/っ([あいうえお])/g,'$1');
+      return out;
+    }
+
+    // ---------------- OTO parsing/serial ----------------
+    function parseOtoLine(raw){
+      const idx = raw.indexOf('=');
+      if(idx===-1){ return {kind:'comment', raw}; }
+      const left = raw.slice(0,idx).trim();
+      const right = raw.slice(idx+1);
+      const parts = right.split(',');
+      const alias = (parts[0]||'').trim();
+      const rest = parts.slice(1);
+      return {kind:'entry', filename:left, alias, rest, raw};
+    }
+    function serializeOtoLine(e){
+      if(e.kind!=='entry') return e.raw||'';
+      const fields = e.rest ? e.rest.slice() : [];
+      while(fields.length<5) fields.push('');
+      const right = [e.alias, ...fields].join(',');
+      return `${e.filename}=${right}`;
+    }
+    function inferAliasFromFilename(filename){
+      const base = (filename.split(/[\\\/]/).pop()||filename).replace(/\.[^.]+$/, '');
+      return base.trim();
+    }
+
+    // ---------------- State ----------------
+    let entries = []; // array de objetos parseados
+    let fileName = 'oto.ini';
+
+    // ---------------- Elements ----------------
+    const el = (id)=>document.getElementById(id);
+    const fileInput = el('fileInput');
+    const btnUpload = el('btnUpload');
+    const btnConvert = el('btnConvert');
+    const btnDownload = el('btnDownload');
+    const btnNovo = el('btnNovo');
+    const dropzone = el('dropzone');
+    const workArea = el('workArea');
+    const gridBody = el('gridBody');
+    const rendered = el('rendered');
+    const fileMeta = el('fileMeta');
+    const filterInput = el('filter');
+
+    function refreshUI(){
+      const list = getDisplayedEntries();
+      // cabeçalho meta
+      fileMeta.innerHTML = `Arquivo: <span class="font-medium">${fileName}</span> — Linhas: ${entries.length}`;
+
+      // corpo da grid
+      gridBody.innerHTML = '';
+      list.forEach((row, idx) => {
+        const container = document.createElement('div');
+        container.className = 'grid grid-cols-12 items-center';
+
+        if(row.kind==='entry'){
+          const c1 = document.createElement('div');
+          c1.className = 'col-span-5 px-3 py-2 font-mono text-xs truncate';
+          c1.title = row.filename; c1.textContent = row.filename;
+
+          const c2 = document.createElement('div');
+          c2.className = 'col-span-3 px-3 py-2';
+          const inp = document.createElement('input');
+          inp.type='text';
+          inp.className='w-full px-2 py-1 rounded-lg border bg-white text-sm';
+          inp.value = row.alias||'';
+          inp.placeholder = inferAliasFromFilename(row.filename);
+          inp.addEventListener('input', (e)=>{
+            // precisamos mapear para o índice real em entries, não da lista filtrada
+            const realIndex = row.__index; // atribuído em getDisplayedEntries
+            if(entries[realIndex] && entries[realIndex].kind==='entry'){
+              entries[realIndex].alias = e.target.value;
+              updateRendered();
+            }
+          });
+          c2.appendChild(inp);
+
+          const c3 = document.createElement('div');
+          c3.className='col-span-4 px-3 py-2 font-mono text-xs text-gray-600 truncate';
+          c3.textContent = (row.rest||[]).join(',');
+
+          container.append(c1,c2,c3);
+        } else {
+          const c = document.createElement('div');
+          c.className='col-span-12 px-3 py-2 font-mono text-xs text-gray-500';
+          c.textContent = row.raw;
+          container.appendChild(c);
+        }
+        gridBody.appendChild(container);
+      });
+
+      updateRendered();
+    }
+
+    function updateRendered(){
+      rendered.textContent = entries.map(serializeOtoLine).join('\n');
+    }
+
+    function getDisplayedEntries(){
+      const q = (filterInput.value||'').toLowerCase();
+      const out = [];
+      entries.forEach((e,i)=>{
+        const row = Object.assign({}, e); // cópia rasa
+        row.__index = i; // manter índice real
+        if(!q) { out.push(row); return; }
+        if(e.kind!=='entry') { out.push(row); return; }
+        const hit = (e.filename||'').toLowerCase().includes(q) || (e.alias||'').toLowerCase().includes(q);
+        if(hit) out.push(row);
+      });
+      return out;
+    }
+
+    function convertAliases(){
+      entries = entries.map(e=>{
+        if(e.kind!=='entry') return e;
+        let alias = (e.alias||'').trim();
+        if(!alias) alias = inferAliasFromFilename(e.filename);
+        const hira = romajiToHiragana(alias);
+        return Object.assign({}, e, { alias: hira });
+      });
+      refreshUI();
+    }
+
+    function exportOto(){
+      const content = entries.map(serializeOtoLine).join('\n');
+      const blob = new Blob([content], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = fileName || 'oto_converted.ini';
+      a.click(); URL.revokeObjectURL(url);
+    }
+
+    function handleText(text, name){
+      const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+      entries = lines.map(parseOtoLine);
+      fileName = name || 'oto.ini';
+      dropzone.style.display='none';
+      workArea.style.display='block';
+      btnConvert.disabled = false;
+      btnDownload.disabled = false;
+      refreshUI();
+    }
+
+    // ---------------- Events ----------------
+    btnUpload.addEventListener('click', ()=> fileInput.click());
+    fileInput.addEventListener('change', (ev)=>{
+      const f = ev.target.files && ev.target.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=> handleText(String(reader.result), f.name);
+      reader.readAsText(f, 'utf-8');
+    });
+
+    // Drag & Drop
+    ;['dragenter','dragover','dragleave','drop'].forEach(evt=>{
+      dropzone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); }, false);
+    });
+    dropzone.addEventListener('drop', e=>{
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if(!f) return;
+      const reader = new FileReader();
+      reader.onload = ()=> handleText(String(reader.result), f.name);
+      reader.readAsText(f, 'utf-8');
+    });
+
+    btnConvert.addEventListener('click', convertAliases);
+    btnDownload.addEventListener('click', exportOto);
+
+    btnNovo.addEventListener('click', ()=>{
+      entries = []; fileName = 'oto.ini';
+      filterInput.value = '';
+      workArea.style.display='none';
+      dropzone.style.display='block';
+      btnConvert.disabled = true; btnDownload.disabled = true;
+      rendered.textContent = '';
+      gridBody.innerHTML = '';
+    });
+
+    filterInput.addEventListener('input', refreshUI);
+  </script>
+</body>
+</html>
