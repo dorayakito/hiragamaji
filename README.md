@@ -1,6 +1,6 @@
 # HiRAGAMAJi - Romaji para Hiragana
 
-Este utilitário permite converter aliases de um voicebank de Romaji para Hiragana, com foco em arquivos de configuração `oto.ini` para UTAU. A ferramenta facilita a padronização de dicionários e oferece controle total sobre as edições.
+O HiRAGAMAJi permite converter aliases de um voicebank de Romaji para Hiragana, com foco em arquivos de configuração `oto.ini` para UTAU. A ferramenta facilita a padronização de dicionários e oferece controle total sobre as edições.
 
 ## Funcionalidades
 
